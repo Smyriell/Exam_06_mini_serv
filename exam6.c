@@ -61,6 +61,10 @@ int main(int argc, char* argv[]) {
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     socklen_t addr_len = sizeof(addr);
 
+    struct sockaddr_storage client_addr;
+    memset(&client_addr, 0, sizeof(client_addr));
+    socklen_t client_addr_len = sizeof(client_addr);
+
     if ((bind(socketServ, (const struct sockaddr *)&addr, addr_len)) != 0)
         err("Fatal error\n", socketServ);
     if (listen(socketServ, 10) != 0)
@@ -74,9 +78,8 @@ int main(int argc, char* argv[]) {
 
         for (int fd = 0; fd < maxFd; fd++) {
             if (FD_ISSET(fd, &read_set) && fd == socketServ) {
-                struct sockaddr_storage client_addr;
-                socklen_t addr_size = sizeof(client_addr);
-                int clientSock = accept(socketServ, (struct sockaddr *)&client_addr, &addr_size);
+                
+                int clientSock = accept(socketServ, (struct sockaddr *)&client_addr, &client_addr_len);
                 if (clientSock < 0)
                     continue;
                 maxFd = clientSock > maxFd - 1 ? clientSock + 1 : maxFd;
@@ -105,13 +108,22 @@ int main(int argc, char* argv[]) {
                     for (int i = 0, j = strlen(clients[fd].buf); i < bytes; i++, j++) {
                         clients[fd].buf[j] = bufRead[i];
                         
-                        if (clients[fd].buf[j] == '\n') {
-                            if (strlen(clients[fd].buf) > 1) {
-                                clients[fd].buf[j] = '\0';
-                                bzero(bufWrite, 128*1024);
-                                sprintf(bufWrite, "client %d: %s\n", clients[fd].id, clients[fd].buf);
-                                sendToAll(&fd);
-                            }
+                        // if (clients[fd].buf[j] == '\n') { 
+                        //     if (strlen(clients[fd].buf) > 1) { // in real life server should't send to clients empty buffer, but in exame case traces will give you mistake. So for exam use the block down  
+                        //         clients[fd].buf[j] = '\0';
+                        //         bzero(bufWrite, 128*1024);
+                        //         sprintf(bufWrite, "client %d: %s\n", clients[fd].id, clients[fd].buf);
+                        //         sendToAll(&fd);
+                        //     }
+                        //     bzero(clients[fd].buf, 128*1024);
+                        //     j = -1;
+                        // }
+
+                        if (clients[fd].buf[j] == '\n') { // in real life we should't send to server empty buff to read, but in exam case traces will give you mistake 
+                            clients[fd].buf[j] = '\0';
+                            bzero(bufWrite, 128*1024);
+                            sprintf(bufWrite, "client %d: %s\n", clients[fd].id, clients[fd].buf);
+                            sendToAll(&fd);
                             bzero(clients[fd].buf, 128*1024);
                             j = -1;
                         }
